@@ -30,6 +30,7 @@ impl Crawler {
             Some(chromium_service_url) => browser_connect_external(chromium_service_url).await.context("Connecting to external Chromium")?,
             None => headless_chrome::Browser::default().context("Launching headless Chromium")?,
         };
+        browser_apply_options(&args, &browser);
 
         let rules = CrawlRules::load(&args.rules_path).await
             .context("Loading crawl rules")?;
@@ -62,7 +63,7 @@ impl Crawler {
         loop {
             crawl_limiter.wait_and_hit().await;
             info!("Crawling '{}'...", crawl_url);
-            self.crawl_page(crawl_url).await?;
+            self.crawl_page(crawl_url).await.context("Crawling page")?;
 
             match self.take_next_pending_page_crawl_url().await? {
                 Some(next_pending_page_crawl_url) => crawl_url = next_pending_page_crawl_url,
@@ -81,9 +82,9 @@ impl Crawler {
         let output_dir_path = self.args.output_dir_path.clone();
 
         tokio_await_blocking(move || {
-            let tab = browser_init_tab(&browser)?;
-            let tab_network_interceptor = TabNetworkInterceptor::attach(&tab)?;
-            let tab_url = browser_tab_navigate(&tab, crawl_url.as_str())?;
+            let tab = browser_init_tab(&browser).context("Initializing browser tab")?;
+            let tab_network_interceptor = TabNetworkInterceptor::attach(&tab).context("Attaching browser tab network interceptor")?;
+            let tab_url = browser_tab_navigate(&tab, crawl_url.as_str()).context("Navigating browser tab")?;
 
             let page_crawl_row = tokio_block_on(index.add_page_crawl(&tab_url, chrono::Utc::now()))?;
 
@@ -196,8 +197,8 @@ fn browser_init_tab(browser: &headless_chrome::Browser) -> anyhow::Result<Arc<he
 }
 
 fn browser_tab_navigate(tab: &headless_chrome::Tab, url: &str) -> anyhow::Result<String> {
-    tab.navigate_to(url)?;
-    tab.wait_until_navigated()?;
+    tab.navigate_to(url).context("Navigating browser tab")?;
+    tab.wait_until_navigated().context("Waiting for browser tab navigation to finish")?;
 
     let navigated_url = tab.get_url();
     Ok(navigated_url)
@@ -237,4 +238,8 @@ async fn browser_connect_external(chromium_service_url: &Url) -> anyhow::Result<
      */
     headless_chrome::Browser::connect(websocket_debugger_url.to_owned())
         .context("Connecting with headless_chrome")
+}
+
+fn browser_apply_options(args: &CLIArgs, browser: &headless_chrome::Browser) {
+    browser.set_default_timeout(args.chromium_timeout);
 }

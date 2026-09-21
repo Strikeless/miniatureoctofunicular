@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use clap::Parser;
@@ -16,6 +16,14 @@ pub mod index;
 pub struct CLIArgs {
     #[clap(long = "chromium-service-url", help = "An URL to an external Chromium browser's remote debugging service. Start Chromium with --remote-debugging-port.")]
     pub chromium_service_url: Option<Url>,
+
+    #[clap(
+        long = "chromium-timeout",
+        help = "How long to wait for some browser events to finish before failing with a timeout. A high value is recommended for larger websites or slower internet connections.",
+        value_parser = humantime::parse_duration,
+        default_value = "3m",
+    )]
+    pub chromium_timeout: Duration,
 
     #[clap(long = "crawl-url", help = "An URL to start crawling from. This takes precedence over a crawl index and the crawl root URL of the rules.")]
     pub crawl_url_override: Option<Url>,
@@ -46,11 +54,16 @@ fn main() {
 
     let run_result = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .build().expect("Building tokio runtime")
+        .build()
+        .expect("Building tokio runtime")
         .block_on(run(args));
 
     if let Err(e) = run_result {
-        error!(error = ?e, "Fatal runtime error");
+        error!(
+            error = ?e,
+            backtrace = ?e.backtrace(),
+            "Fatal runtime error"
+        );
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "crawler"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 
 [dependencies]
@@ -22,4 +22,5 @@ blake3 = "1"
 chrono = "0.4"
 rand = "0.10"
 reqwest = "0.13"
-base64 = "0.22"
+base64 = "0.23"
+humantime = "2.4"
